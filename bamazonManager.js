@@ -4,6 +4,11 @@ const Table = require("cli-table");
 const colors = require("colors/safe");
 
 var numberOfItems = 0;
+var updateProduct = "";
+var newQuantity = 0;
+var availableQuantity = 0;
+var inventoryItem = "";
+var itemToDelete = 0;
 
 var connection = mysql.createConnection({
   host: "localhost",
@@ -29,13 +34,12 @@ function chooseCommand() {
           { name: "View Low Inventory", value: 2 },
           { name: "Add to Inventory", value: 3 },
           { name: "Add New Product", value: 4 },
-          { name: "Exit", value: 5 }
+          { name: "Delete Product", value: 5 },
+          { name: "Exit", value: 6 }
         ]
       }
     ])
     .then(function(answers) {
-      //console.log(answers.command);
-
       switch (answers.command) {
         case 1:
           viewProducts("allItems");
@@ -50,10 +54,14 @@ function chooseCommand() {
           break;
 
         case 4:
-          addProduct("newItem");
+          viewProducts("newItem");
           break;
 
         case 5:
+          viewProducts("deleteItem");
+          break;
+
+        case 6:
           connection.end();
       }
     });
@@ -96,6 +104,8 @@ function viewProducts(option, message) {
       addInventory(numberOfItems);
     } else if (option === "newItem") {
       newItem();
+    } else if (option === "deleteItem") {
+      deleteItem(numberOfItems);
     } else {
       chooseCommand();
     }
@@ -112,18 +122,10 @@ function addInventory(numberOfItems) {
           "Enter the ID of the item of which you would like to adjust the inventory (1 - " +
           numberOfItems +
           ")."
-      },
-      {
-        type: "input",
-        name: "addInventoryQuantity",
-        //message: "Enter the new quantity TO BE ADDED."
-        message: "Enter the quantity TO BE ADDED to the inventory of: " + updateProduct + "."
       }
     ])
     .then(function(answers) {
-      var inventoryItem = answers.addInventoryItem;
-      var addQuantity = parseInt(answers.addInventoryQuantity);
-      //var price = 0;
+      inventoryItem = answers.addInventoryItem;
       connection.query(
         "SELECT product_name, stock_quantity FROM products WHERE ?",
         { item_id: inventoryItem },
@@ -132,25 +134,150 @@ function addInventory(numberOfItems) {
             console.log(error);
             return;
           }
-          var updateProduct = results[0].product_name;
-          var availableQuantity = parseInt(results[0].stock_quantity);
-          var newQuantity = availableQuantity + addQuantity;
-          connection.query(
-            "UPDATE products SET ? WHERE ?",
-            [{ stock_quantity: newQuantity }, { item_id: inventoryItem }],
-            function(error, results, fields) {
-              if (error) {
-                console.log(error);
-                return;
-              }
-              viewProducts(
-                0,
-                colors.green("Product inventory updated successfully!\n")
-              );
-            }
-          );
+          updateProduct = results[0].product_name;
+          availableQuantity = parseInt(results[0].stock_quantity);
+          updateProductQuantity();
         }
-        //}
       );
+    });
+}
+
+function updateProductQuantity() {
+  inquirer
+    .prompt([
+      {
+        type: "input",
+        name: "addInventoryQuantity",
+        message:
+          "Enter the quantity TO BE ADDED (OR SUBTRACTED) to the inventory of: " +
+          updateProduct +
+          "."
+      }
+    ])
+    .then(function(answers) {
+      var addQuantity = parseInt(answers.addInventoryQuantity);
+      if (addQuantity === 0) {
+        viewProducts();
+      } else {
+        newQuantity = availableQuantity + addQuantity;
+        connection.query(
+          "UPDATE products SET ? WHERE ?",
+          [{ stock_quantity: newQuantity }, { item_id: inventoryItem }],
+          function(error, results, fields) {
+            if (error) {
+              console.log(error);
+              return;
+            }
+            viewProducts(
+              0,
+              colors.green(
+                updateProduct +
+                  " inventory successfully updated to " +
+                  newQuantity +
+                  ".\n"
+              )
+            );
+          }
+        );
+      }
+    });
+}
+
+function newItem() {
+  inquirer
+    .prompt([
+      {
+        type: "input",
+        name: "newItem",
+        message: "Enter the name of the new item."
+      },
+      {
+        type: "input",
+        name: "newPrice",
+        message: "Enter the price of the new item."
+      },
+      {
+        type: "input",
+        name: "newQuantity",
+        message: "Enter the current inventory of the new item."
+      }
+    ])
+    .then(function(answers) {
+      var newItem = answers.newItem;
+      var newDepartment = "Other";
+      var newPrice = parseFloat(answers.newPrice.replace("$", "")).toFixed(2);
+      var newQuantity = parseInt(answers.newQuantity);
+      connection.query(
+        "INSERT INTO products (product_name, department_name, price, stock_quantity) VALUES (?)",
+        [[newItem, newDepartment, newPrice, newQuantity]],
+        function(error, results, fields) {
+          if (error) {
+            console.log(error);
+            return;
+          }
+          viewProducts(0, colors.green(newItem + " added successfully!\n"));
+        }
+      );
+    });
+}
+
+function deleteItem(numberOfItems) {
+  inquirer
+    .prompt([
+      {
+        type: "input",
+        name: "deleteItem",
+        message:
+          "Enter the ID of the item which you would like delete (1 - " +
+          numberOfItems +
+          ")."
+      }
+    ])
+    .then(function(answers) {
+      itemToDelete = parseInt(answers.deleteItem);
+      connection.query(
+        "SELECT product_name FROM products WHERE ?",
+        { item_id: itemToDelete },
+        function(error, results, fields) {
+          if (error) {
+            console.log(error);
+            return;
+          }
+          var deleteProduct = results[0].product_name;
+          confirmDelete(deleteProduct);
+        }
+      );
+    });
+}
+
+function confirmDelete(deleteProduct) {
+  inquirer
+    .prompt([
+      {
+        type: "confirm",
+        name: "confirmation",
+        message:
+          "Are you SURE you want to delete the product: " + deleteProduct + "?"
+      }
+    ])
+    .then(function(answers) {
+      if (!answers.confirmation) {
+        viewProducts();
+      } else {
+        connection.query(
+          "DELETE FROM products WHERE ?",
+          { item_id: itemToDelete },
+          function(error, results, fields) {
+            if (error) {
+              console.log(error);
+              return;
+            }
+            viewProducts(
+              0,
+              colors.green(deleteProduct + " successfully deleted.\n")
+            );
+          }
+        );
+      }
     });
 }
