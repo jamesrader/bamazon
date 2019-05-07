@@ -23,5 +23,24 @@ VALUES ("Alienware 17-inch Laptop", "computers", 1550.00, 2),
 ("Denon AVRS940H Receiver", "audio", 449.99, 1),
 ("AKG K240 MKII Stereo Headphones", "audio", 149.00, 4);
 
+SELECT * FROM products;
+
+CREATE TABLE departments (
+department_id INTEGER(3) AUTO_INCREMENT NOT NULL PRIMARY KEY,
+department_name VARCHAR(30) NOT NULL,
+overhead_costs DECIMAL(7,2) NOT NULL
+);
+
+INSERT INTO departments (department_name, overhead_costs)
+VALUES ("computers", 15000),
+("tv/video", 20000),
+("video games", 10000),
+("audio", 12000),
+("other", 5000);
+
+SELECT * FROM departments;
+
+ALTER TABLE products
+ADD COLUMN product_sales DECIMAL(7,2) NOT NULL DEFAULT 0;
 
 SELECT * FROM products;

@@ -9,6 +9,8 @@ var newQuantity = 0;
 var availableQuantity = 0;
 var inventoryItem = "";
 var itemToDelete = 0;
+var departments = [];
+var itemNums = [];
 
 var connection = mysql.createConnection({
   host: "localhost",
@@ -20,6 +22,7 @@ var connection = mysql.createConnection({
 
 connection.connect(function(err) {
   if (err) throw err;
+  //getDepartments();
   chooseCommand();
 });
 
@@ -63,6 +66,7 @@ function chooseCommand() {
 
         case 6:
           connection.end();
+          process.exit();
       }
     });
 }
@@ -87,6 +91,7 @@ function viewProducts(option, message) {
     });
     numberOfItems = res.length;
     for (var i = 0; i < numberOfItems; i++) {
+      itemNums.push(parseInt(res[i].item_id));
       table.push([
         res[i].item_id,
         res[i].product_name,
@@ -119,9 +124,14 @@ function addInventory(numberOfItems) {
         type: "input",
         name: "addInventoryItem",
         message:
-          "Enter the ID of the item of which you would like to adjust the inventory (1 - " +
-          numberOfItems +
-          ")."
+          "Enter the ID of the item of which you would like to adjust the inventory.",
+        validate: function(input) {
+          if (itemNums.indexOf(parseInt(input)) > -1) {
+            return true;
+          } else {
+            return colors.red("Please choose a valid item ID.");
+          }
+        }
       }
     ])
     .then(function(answers) {
@@ -184,6 +194,8 @@ function updateProductQuantity() {
 }
 
 function newItem() {
+  getDepartments();
+
   inquirer
     .prompt([
       {
@@ -197,6 +209,12 @@ function newItem() {
         message: "Enter the price of the new item."
       },
       {
+        type: "list",
+        name: "newDepartment",
+        message: "Choose the department this item belongs to.",
+        choices: departments
+      },
+      {
         type: "input",
         name: "newQuantity",
         message: "Enter the current inventory of the new item."
@@ -204,7 +222,7 @@ function newItem() {
     ])
     .then(function(answers) {
       var newItem = answers.newItem;
-      var newDepartment = "Other";
+      var newDepartment = answers.newDepartment;
       var newPrice = parseFloat(answers.newPrice.replace("$", "")).toFixed(2);
       var newQuantity = parseInt(answers.newQuantity);
       connection.query(
@@ -227,10 +245,14 @@ function deleteItem(numberOfItems) {
       {
         type: "input",
         name: "deleteItem",
-        message:
-          "Enter the ID of the item which you would like delete (1 - " +
-          numberOfItems +
-          ")."
+        message: "Enter the ID of the item which you would like delete.",
+        validate: function(input) {
+          if (itemNums.indexOf(parseInt(input)) > -1) {
+            return true;
+          } else {
+            return colors.red("Please choose a valid item ID.");
+          }
+        }
       }
     ])
     .then(function(answers) {
@@ -280,4 +302,20 @@ function confirmDelete(deleteProduct) {
         );
       }
     });
+}
+
+function getDepartments() {
+  var query = "SELECT department_name FROM departments";
+
+  connection.query(query, function(err, res) {
+    if (err) throw err;
+
+    //console.log(res);
+
+    numberOfItems = res.length;
+    for (var i = 0; i < numberOfItems; i++) {
+      departments.push(res[i].department_name);
+      //console.log(departments);
+    }
+  });
 }
